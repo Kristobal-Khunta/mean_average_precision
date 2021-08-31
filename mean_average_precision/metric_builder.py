@@ -1,9 +1,12 @@
 from .mean_average_precision_2d import MeanAveragePrecision2d
+from .mean_average_precision_3d_voxels import MeanAveragePrecision3d
+
 from .multiprocessing import MetricMultiprocessing
 from .adapter import AdapterDefault
 
 metrics_dict = {
     'map_2d': MeanAveragePrecision2d
+    'map_3d': MeanAveragePrecision3d
 }
 
 class MetricBuilder:
