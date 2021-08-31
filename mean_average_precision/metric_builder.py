@@ -4,10 +4,8 @@ from .mean_average_precision_3d_voxels import MeanAveragePrecision3d
 from .multiprocessing import MetricMultiprocessing
 from .adapter import AdapterDefault
 
-metrics_dict = {
-    'map_2d': MeanAveragePrecision2d
-    'map_3d': MeanAveragePrecision3d
-}
+metrics_dict = {"map_2d": MeanAveragePrecision2d, "map_3d": MeanAveragePrecision3d}
+
 
 class MetricBuilder:
     @staticmethod
@@ -16,7 +14,9 @@ class MetricBuilder:
         return list(metrics_dict.keys())
 
     @staticmethod
-    def build_evaluation_metric(metric_type, async_mode=False, adapter_type=AdapterDefault, *args, **kwargs):
+    def build_evaluation_metric(
+        metric_type, async_mode=False, adapter_type=AdapterDefault, *args, **kwargs
+    ):
         """ Build evaluation metric.
 
         Arguments:
@@ -31,5 +31,7 @@ class MetricBuilder:
         if not async_mode:
             metric_fn = metrics_dict[metric_type](*args, **kwargs)
         else:
-            metric_fn = MetricMultiprocessing(metrics_dict[metric_type], *args, **kwargs)
+            metric_fn = MetricMultiprocessing(
+                metrics_dict[metric_type], *args, **kwargs
+            )
         return adapter_type(metric_fn)
