@@ -24,6 +24,7 @@ SOFTWARE.
 
 import numpy as np
 
+
 class AdapterBase:
     """ Arguments Adapter for Metric.
 
@@ -31,6 +32,7 @@ class AdapterBase:
         metric_fn (MetricBase): metric function.
         value_config (dict): arguments of self..value(...) method.
     """
+
     def __init__(self, metric_fn, value_config=None):
         self.metric_fn = metric_fn
         self.value_config = value_config
@@ -101,6 +103,74 @@ class AdapterBase:
 class AdapterDefault(AdapterBase):
     """ Default implementation of adapter class.
     """
+
+    def _preds_adapter(self, preds):
+        return preds
+
+    def _gt_adapter(self, gt):
+        return gt
+
+
+class Adapter3dVoxels:
+    """ Arguments Adapter for Metric.
+
+    Arguments:
+        metric_fn (MetricBase): metric function.
+        value_config (dict): arguments of self..value(...) method.
+    """
+
+    def __init__(self, metric_fn, value_config=None):
+        self.metric_fn = metric_fn
+        self.value_config = value_config
+
+    def add(self, preds, gt):
+        """ Add sample to evaluation.
+
+        Arguments:
+            preds (np.array): predicted boxes.
+            gt (np.array): ground truth boxes.
+        """
+        preds, gt = self._check_empty(preds, gt)
+        preds = self._preds_adapter(preds)
+        gt = self._gt_adapter(gt)
+        return self.metric_fn.add(preds, gt)
+
+    def value(self, *args, **kwargs):
+        """ Evaluate Metric.
+
+        Arguments:
+            *args, **kwargs: metric specific arguments.
+
+        Returns:
+            metric (dict): evaluated metrics.
+        """
+        if self.value_config is not None:
+            return self.metric_fn.value(**self.value_config)
+        else:
+            return self.metric_fn.value(*args, **kwargs)
+
+    def reset(self):
+        """ Reset stored data.
+        """
+        return self.metric_fn.reset()
+
+    def _check_empty(self, preds, gt):
+        """ Check empty arguments
+
+        Arguments:
+            preds (np.array): predicted boxes.
+            gt (np.array): ground truth boxes.
+
+        Returns:
+            preds (np.array): predicted boxes.
+            gt (np.array): ground truth boxes.
+        """
+        if not preds.size:
+            preds = np.zeros((0, 8))
+        if not gt.size:
+            gt = np.zeros((0, 9))
+        return preds, gt
+
     def _preds_adapter(self, preds):
         return preds
 
