@@ -24,20 +24,19 @@ SOFTWARE.
 
 from .metric_base import MetricBase
 import numpy as np
-import pandas as pd
 from .utils import (
+    compute_match_table_3d,
     row_to_vars,
     check_box,
     compute_precision_recall,
     compute_average_precision,
     compute_average_precision_with_recall_thresholds,
-    compute_match_table,
 )
+import pandas as pd
 
 
-class MeanAveragePrecision2d(MetricBase):
+class MeanAveragePrecision3d(MetricBase):
     """ Mean Average Precision for object detection.
-
     Arguments:
         num_classes (int): number of classes.
     """
@@ -52,31 +51,28 @@ class MeanAveragePrecision2d(MetricBase):
 
     def add(self, preds, gt):
         """ Add sample to evaluation.
-
         Arguments:
             preds (np.array): predicted boxes.
             gt (np.array): ground truth boxes.
-
         Input format:
-            preds: [xmin, ymin, xmax, ymax, class_id, confidence]
-            gt: [xmin, ymin, xmax, ymax, class_id, difficult, crowd]
+            preds: [xmin, ymin, zmin, xmax, ymax, zmax, class_id, confidence]
+            gt: [xmin, ymin, zmin, xmax, ymax,zmax, class_id, difficult, crowd]
         """
-        assert preds.ndim == 2 and preds.shape[1] == 6
-        assert gt.ndim == 2 and gt.shape[1] == 7
+        assert preds.ndim == 2 and preds.shape[1] == 8
+        assert gt.ndim == 2 and gt.shape[1] == 9
         class_counter = np.zeros((1, self.num_classes), dtype=np.int32)
         for c in range(self.num_classes):
-            gt_c = gt[gt[:, 4] == c]
+            gt_c = gt[gt[:, 6] == c]
             class_counter[0, c] = gt_c.shape[0]
-            preds_c = preds[preds[:, 4] == c]
+            preds_c = preds[preds[:, 6] == c]
             if preds_c.shape[0] > 0:
-                match_table = compute_match_table(preds_c, gt_c, self.imgs_counter)
+                match_table = compute_match_table_3d(preds_c, gt_c, self.imgs_counter)
                 self.match_table[c] = self.match_table[c].append(match_table)
         self.imgs_counter = self.imgs_counter + 1
         self.class_counter = np.concatenate((self.class_counter, class_counter), axis=0)
 
     def value(self, iou_thresholds=[0.5], recall_thresholds=None, mpolicy="greedy"):
         """ Evaluate Mean Average Precision.
-
         Arguments:
             iou_thresholds (list of float): IOU thresholds.
             recall_thresholds (np.array or None): specific recall thresholds to the
@@ -84,10 +80,8 @@ class MeanAveragePrecision2d(MetricBase):
             mpolicy (str): box matching policy.
                            greedy - greedy matching like VOC PASCAL.
                            soft - soft matching like COCO.
-
         Returns:
             metric (dict): evaluated metrics.
-
         Output format:
             {
                 "mAP": float.
@@ -136,7 +130,6 @@ class MeanAveragePrecision2d(MetricBase):
         self, class_id, iou_threshold, recall_thresholds, mpolicy="greedy"
     ):
         """ Evaluate class.
-
         Arguments:
             class_id (int): index of evaluated class.
             iou_threshold (float): iou threshold.
@@ -145,7 +138,6 @@ class MeanAveragePrecision2d(MetricBase):
             mpolicy (str): box matching policy.
                            greedy - greedy matching like VOC PASCAL.
                            soft - soft matching like COCO.
-
         Returns:
             average_precision (np.array)
             precision (np.array)
@@ -195,4 +187,3 @@ class MeanAveragePrecision2d(MetricBase):
         self.match_table = []
         for i in range(self.num_classes):
             self.match_table.append(pd.DataFrame(columns=columns))
-

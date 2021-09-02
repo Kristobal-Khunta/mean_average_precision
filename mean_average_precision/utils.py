@@ -25,10 +25,12 @@ SOFTWARE.
 import numpy as np
 import pandas as pd
 
+
 def sort_by_col(array, idx=1):
     """Sort np.array by column."""
     order = np.argsort(array[:, idx])[::-1]
     return array[order]
+
 
 def compute_precision_recall(tp, fp, n_positives):
     """ Compute Preision/Recall.
@@ -48,6 +50,7 @@ def compute_precision_recall(tp, fp, n_positives):
     precision = tp / np.maximum(tp + fp, np.finfo(np.float64).eps)
     return precision, recall
 
+
 def compute_average_precision(precision, recall):
     """ Compute Avearage Precision by all points.
 
@@ -58,15 +61,18 @@ def compute_average_precision(precision, recall):
     Returns:
         average_precision (np.array)
     """
-    precision = np.concatenate(([0.], precision, [0.]))
-    recall = np.concatenate(([0.], recall, [1.]))
+    precision = np.concatenate(([0.0], precision, [0.0]))
+    recall = np.concatenate(([0.0], recall, [1.0]))
     for i in range(precision.size - 1, 0, -1):
         precision[i - 1] = np.maximum(precision[i - 1], precision[i])
     ids = np.where(recall[1:] != recall[:-1])[0]
     average_precision = np.sum((recall[ids + 1] - recall[ids]) * precision[ids + 1])
     return average_precision
 
-def compute_average_precision_with_recall_thresholds(precision, recall, recall_thresholds):
+
+def compute_average_precision_with_recall_thresholds(
+    precision, recall, recall_thresholds
+):
     """ Compute Avearage Precision by specific points.
 
     Arguments:
@@ -77,11 +83,12 @@ def compute_average_precision_with_recall_thresholds(precision, recall, recall_t
     Returns:
         average_precision (np.array)
     """
-    average_precision = 0.
+    average_precision = 0.0
     for t in recall_thresholds:
         p = np.max(precision[recall >= t]) if np.sum(recall >= t) != 0 else 0
         average_precision = average_precision + p / recall_thresholds.size
     return average_precision
+
 
 def compute_iou(pred, gt):
     """ Calculates IoU (Jaccard index) of two sets of bboxes:
@@ -95,8 +102,9 @@ def compute_iou(pred, gt):
         Return value:
             iou (np.array): intersection over union
     """
+
     def get_box_area(box):
-        return (box[:, 2] - box[:, 0] + 1.) * (box[:, 3] - box[:, 1] + 1.)
+        return (box[:, 2] - box[:, 0] + 1.0) * (box[:, 3] - box[:, 1] + 1.0)
 
     _gt = np.tile(gt, (pred.shape[0], 1))
     _pred = np.repeat(pred, gt.shape[0], axis=0)
@@ -106,13 +114,14 @@ def compute_iou(pred, gt):
     ixmax = np.minimum(_gt[:, 2], _pred[:, 2])
     iymax = np.minimum(_gt[:, 3], _pred[:, 3])
 
-    width = np.maximum(ixmax - ixmin + 1., 0)
-    height = np.maximum(iymax - iymin + 1., 0)
+    width = np.maximum(ixmax - ixmin + 1.0, 0)
+    height = np.maximum(iymax - iymin + 1.0, 0)
 
     intersection_area = width * height
     union_area = get_box_area(_gt) + get_box_area(_pred) - intersection_area
     iou = (intersection_area / union_area).reshape(pred.shape[0], gt.shape[0])
     return iou
+
 
 def compute_match_table(preds, gt, img_id):
     """ Compute match table.
@@ -133,6 +142,7 @@ def compute_match_table(preds, gt, img_id):
     Output format:
         match_table: [img_id, confidence, iou, difficult, crowd]
     """
+
     def _tile(arr, nreps, axis=0):
         return np.repeat(arr, nreps, axis=axis).reshape(nreps, -1).tolist()
 
@@ -151,6 +161,81 @@ def compute_match_table(preds, gt, img_id):
         match_table["difficult"] = _empty_array_2d(preds.shape[0])
         match_table["crowd"] = _empty_array_2d(preds.shape[0])
     return pd.DataFrame(match_table, columns=list(match_table.keys()))
+
+
+def compute_iou_3d(pred, gt):
+    """ Calculates IoU (Jaccard index) of two sets of bboxes:
+            IOU = pred ∩ gt / (area(pred) + area(gt) - pred ∩ gt)
+        Parameters:
+            Coordinates of bboxes are supposed to be in the following form: [x1, y1, x2, y2]
+            pred (np.array): predicted bboxes
+            gt (np.array): ground truth bboxes
+        Return value:
+            iou (np.array): intersection over union
+    """
+
+    def get_box_volume(box):
+        return (
+            (box[:, 3] - box[:, 0] + 1.0)
+            * (box[:, 4] - box[:, 1] + 1.0)
+            * (box[:, 5] - box[:, 2] + 1.0)
+        )
+
+    _gt = np.tile(gt, (pred.shape[0], 1))
+    _pred = np.repeat(pred, gt.shape[0], axis=0)
+
+    ixmin = np.maximum(_gt[:, 0], _pred[:, 0])
+    iymin = np.maximum(_gt[:, 1], _pred[:, 1])
+    izmin = np.maximum(_gt[:, 2], _pred[:, 2])
+
+    ixmax = np.minimum(_gt[:, 3], _pred[:, 3])
+    iymax = np.minimum(_gt[:, 4], _pred[:, 4])
+    izmax = np.minimum(_gt[:, 5], _pred[:, 5])
+
+    width = np.maximum(ixmax - ixmin + 1.0, 0)
+    height = np.maximum(iymax - iymin + 1.0, 0)
+    depth = np.maximum(izmax - izmin + 1.0, 0)
+
+    intersection_area = width * height * depth
+    union_area = get_box_volume(_gt) + get_box_volume(_pred) - intersection_area
+    iou = (intersection_area / union_area).reshape(pred.shape[0], gt.shape[0])
+    return iou
+
+
+def compute_match_table_3d(preds, gt, img_id):
+    """ Compute match table.
+    Arguments:
+        preds (np.array): predicted boxes.
+        gt (np.array): ground truth boxes.
+        img_id (int): image id
+    Returns:
+        match_table (pd.DataFrame)
+    Input format:
+        preds: [xmin, ymin, zmin, xmax, ymax, zmax, class_id, confidence]
+        gt: [xmin, ymin, zmin, xmax, ymax, zmax, class_id, difficult, crowd]
+    Output format:
+        match_table: [img_id, confidence, iou, difficult, crowd]
+    """
+
+    def _tile(arr, nreps, axis=0):
+        return np.repeat(arr, nreps, axis=axis).reshape(nreps, -1).tolist()
+
+    def _empty_array_2d(size):
+        return [[] for i in range(size)]
+
+    match_table = {}
+    match_table["img_id"] = [img_id for i in range(preds.shape[0])]
+    match_table["confidence"] = preds[:, -1].tolist()
+    if gt.shape[0] > 0:
+        match_table["iou"] = compute_iou_3d(preds, gt).tolist()
+        match_table["difficult"] = _tile(gt[:, -2], preds.shape[0], axis=0)
+        match_table["crowd"] = _tile(gt[:, -1], preds.shape[0], axis=0)
+    else:
+        match_table["iou"] = _empty_array_2d(preds.shape[0])
+        match_table["difficult"] = _empty_array_2d(preds.shape[0])
+        match_table["crowd"] = _empty_array_2d(preds.shape[0])
+    return pd.DataFrame(match_table, columns=list(match_table.keys()))
+
 
 def row_to_vars(row):
     """ Convert row of pd.DataFrame to variables.
@@ -174,7 +259,10 @@ def row_to_vars(row):
     order = np.argsort(iou)[::-1]
     return img_id, conf, iou, difficult, crowd, order
 
-def check_box(iou, difficult, crowd, order, matched_ind, iou_threshold, mpolicy="greedy"):
+
+def check_box(
+    iou, difficult, crowd, order, matched_ind, iou_threshold, mpolicy="greedy"
+):
     """ Check box for tp/fp/ignore.
 
     Arguments:
@@ -189,26 +277,26 @@ def check_box(iou, difficult, crowd, order, matched_ind, iou_threshold, mpolicy=
     """
     assert mpolicy in ["greedy", "soft"]
     if len(order):
-        result = ('fp', -1)
+        result = ("fp", -1)
         n_check = 1 if mpolicy == "greedy" else len(order)
         for i in range(n_check):
             idx = order[i]
             if iou[idx] > iou_threshold:
                 if not difficult[idx]:
                     if idx not in matched_ind:
-                        result = ('tp', idx)
+                        result = ("tp", idx)
                         break
                     elif crowd[idx]:
-                        result = ('ignore', -1)
+                        result = ("ignore", -1)
                         break
                     else:
                         continue
                 else:
-                    result = ('ignore', -1)
+                    result = ("ignore", -1)
                     break
             else:
-                result = ('fp', -1)
+                result = ("fp", -1)
                 break
     else:
-        result = ('fp', -1)
+        result = ("fp", -1)
     return result
